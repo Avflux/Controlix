@@ -7,7 +7,7 @@ from app.core.scripts.icon_mapper import IconMapper
 import json
 from datetime import datetime
 import customtkinter as ctk
-from typing import Callable, Any
+from typing import Callable, Any, Optional, Dict
 import appdirs
 import sys
 
@@ -746,6 +746,7 @@ class DynamicSettings:
         """Inicializa as configurações dinâmicas."""
         self.config_file = CONFIG_FILE
         self._settings = self._load_settings()
+        self._observers = []
     
     def _load_settings(self) -> dict:
         """
@@ -768,16 +769,11 @@ class DynamicSettings:
     def save(self) -> None:
         """Salva as configurações no arquivo."""
         try:
-            # Criar diretório pai se não existir
-            self.config_file.parent.mkdir(parents=True, exist_ok=True)
-            
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(self._settings, f, indent=4, ensure_ascii=False)
-                
-            logger.info("Configurações salvas com sucesso")
+            logger.debug("Configurações salvas com sucesso")
         except Exception as e:
             logger.error(f"Erro ao salvar configurações: {e}")
-            raise
     
     def get_setting(self, path: list, default: Any = None) -> Any:
         """
@@ -812,6 +808,8 @@ class DynamicSettings:
                 current[key] = {}
             current = current[key]
         current[path[-1]] = value
+        self.save()
+        self._notify_observers()
     
     def delete_setting(self, path: list) -> None:
         """
@@ -825,14 +823,98 @@ class DynamicSettings:
             if key not in current:
                 return
             current = current[key]
-        
         if path[-1] in current:
             del current[path[-1]]
+            self.save()
+            self._notify_observers()
     
     def clear(self) -> None:
         """Limpa todas as configurações."""
-        self._settings.clear()
+        self._settings = {}
         self.save()
+        self._notify_observers()
+    
+    def add_observer(self, observer: Callable[[], None]) -> None:
+        """
+        Adiciona um observador para mudanças nas configurações.
+        
+        Args:
+            observer: Função a ser chamada quando houver mudanças.
+        """
+        if observer not in self._observers:
+            self._observers.append(observer)
+    
+    def remove_observer(self, observer: Callable[[], None]) -> None:
+        """
+        Remove um observador.
+        
+        Args:
+            observer: Função a ser removida.
+        """
+        if observer in self._observers:
+            self._observers.remove(observer)
+    
+    def _notify_observers(self) -> None:
+        """Notifica todos os observadores sobre mudanças."""
+        for observer in self._observers:
+            try:
+                observer()
+            except Exception as e:
+                logger.error(f"Erro ao notificar observador: {e}")
+    
+    def get_window_setting(self, key: str, default: Any = None) -> Any:
+        """
+        Obtém uma configuração específica da janela.
+        
+        Args:
+            key: Chave da configuração.
+            default: Valor padrão se não encontrado.
+            
+        Returns:
+            Any: Valor da configuração ou valor padrão.
+        """
+        return self.get_setting(['window', key], default)
+    
+    def set_window_setting(self, key: str, value: Any) -> None:
+        """
+        Define uma configuração específica da janela.
+        
+        Args:
+            key: Chave da configuração.
+            value: Valor a ser definido.
+        """
+        self.set_setting(['window', key], value)
+    
+    def save_window_position(self, window_name: str, x: int, y: int, width: int, height: int) -> None:
+        """
+        Salva a posição e tamanho de uma janela.
+        
+        Args:
+            window_name: Nome da janela.
+            x: Posição X.
+            y: Posição Y.
+            width: Largura.
+            height: Altura.
+        """
+        from datetime import datetime
+        window_data = {
+            'position': [x, y],
+            'size': [width, height],
+            'last_access': datetime.now().isoformat()
+        }
+        self.set_setting(['window', 'windows', window_name], window_data)
+    
+    def get_window_position(self, window_name: str) -> Optional[Dict]:
+        """
+        Obtém a posição e tamanho salvos de uma janela.
+        
+        Args:
+            window_name: Nome da janela.
+            
+        Returns:
+            Optional[Dict]: Dicionário com posição e tamanho ou None se não encontrado.
+        """
+        return self.get_setting(['window', 'windows', window_name])
 
 # Instância global das configurações dinâmicas
 dynamic_settings = DynamicSettings()

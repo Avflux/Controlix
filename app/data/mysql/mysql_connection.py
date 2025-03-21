@@ -5,7 +5,7 @@ Módulo para gerenciar conexões MySQL.
 import mysql.connector
 from mysql.connector import Error, pooling
 import logging
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Set, Tuple
 from app.config.encrypted_settings import EncryptedSettings
 from app.config.cache.cache_factory import CacheFactory
 
@@ -296,4 +296,142 @@ class MySQLConnection:
             logger.info("Todas as conexões MySQL fechadas")
             
         except Exception as e:
-            logger.error(f"Erro ao fechar conexões: {e}") 
+            logger.error(f"Erro ao fechar conexões: {e}")
+    
+    def get_table_structure(self, table_name: str, is_local: bool = True) -> Dict[str, Any]:
+        """
+        Obtém a estrutura de uma tabela usando SHOW CREATE TABLE.
+        
+        Args:
+            table_name: Nome da tabela
+            is_local: Se True, usa o banco local
+            
+        Returns:
+            Dict[str, Any]: Estrutura da tabela
+        """
+        try:
+            query = f"SHOW CREATE TABLE {table_name}"
+            result = self.execute_query(query, is_local=is_local, use_cache=False)
+            if result:
+                return {
+                    'table_name': table_name,
+                    'create_statement': result[0]['Create Table']
+                }
+            return None
+        except Error as e:
+            logger.error(f"Erro ao obter estrutura da tabela {table_name}: {e}")
+            return None
+
+    def get_all_tables(self, is_local: bool = True) -> List[str]:
+        """
+        Obtém lista de todas as tabelas no banco.
+        
+        Args:
+            is_local: Se True, usa o banco local
+            
+        Returns:
+            List[str]: Lista de nomes de tabelas
+        """
+        try:
+            query = "SHOW TABLES"
+            result = self.execute_query(query, is_local=is_local, use_cache=False)
+            return [list(row.values())[0] for row in result]
+        except Error as e:
+            logger.error(f"Erro ao obter lista de tabelas: {e}")
+            return []
+
+    def compare_table_structures(self, table_name: str) -> Tuple[bool, Optional[str]]:
+        """
+        Compara a estrutura de uma tabela entre os bancos local e remoto.
+        
+        Args:
+            table_name: Nome da tabela
+            
+        Returns:
+            Tuple[bool, Optional[str]]: (são_iguais, diferenças)
+        """
+        try:
+            local_structure = self.get_table_structure(table_name, is_local=True)
+            remote_structure = self.get_table_structure(table_name, is_local=False)
+            
+            if not local_structure or not remote_structure:
+                return False, "Tabela não encontrada em um dos bancos"
+            
+            if local_structure['create_statement'] == remote_structure['create_statement']:
+                return True, None
+            
+            return False, "Estruturas diferentes"
+            
+        except Error as e:
+            logger.error(f"Erro ao comparar estruturas da tabela {table_name}: {e}")
+            return False, str(e)
+
+    def sync_table_structure(self, table_name: str, source_is_local: bool = True) -> bool:
+        """
+        Sincroniza a estrutura de uma tabela entre os bancos.
+        
+        Args:
+            table_name: Nome da tabela
+            source_is_local: Se True, usa estrutura local como fonte
+            
+        Returns:
+            bool: True se sincronização foi bem sucedida
+        """
+        try:
+            source_structure = self.get_table_structure(table_name, is_local=source_is_local)
+            if not source_structure:
+                logger.error(f"Tabela {table_name} não encontrada no banco {'local' if source_is_local else 'remoto'}")
+                return False
+            
+            # Criar tabela no destino se não existir
+            create_statement = source_structure['create_statement']
+            self.execute_update(create_statement, is_local=not source_is_local)
+            
+            logger.info(f"Estrutura da tabela {table_name} sincronizada com sucesso")
+            return True
+            
+        except Error as e:
+            logger.error(f"Erro ao sincronizar estrutura da tabela {table_name}: {e}")
+            return False
+
+    def check_and_sync_structures(self, source_is_local: bool = True) -> Dict[str, Any]:
+        """
+        Verifica e sincroniza estruturas de todas as tabelas.
+        
+        Args:
+            source_is_local: Se True, usa estruturas locais como fonte
+            
+        Returns:
+            Dict[str, Any]: Relatório da sincronização
+        """
+        report = {
+            'success': True,
+            'synced_tables': [],
+            'failed_tables': [],
+            'errors': []
+        }
+        
+        try:
+            # Obter lista de tabelas da fonte
+            source_tables = self.get_all_tables(is_local=source_is_local)
+            
+            for table in source_tables:
+                try:
+                    if self.sync_table_structure(table, source_is_local):
+                        report['synced_tables'].append(table)
+                    else:
+                        report['failed_tables'].append(table)
+                except Exception as e:
+                    report['failed_tables'].append(table)
+                    report['errors'].append(f"Erro na tabela {table}: {str(e)}")
+            
+            if report['failed_tables']:
+                report['success'] = False
+                
+            return report
+            
+        except Exception as e:
+            logger.error(f"Erro ao sincronizar estruturas: {e}")
+            report['success'] = False
+            report['errors'].append(str(e))
+            return report 

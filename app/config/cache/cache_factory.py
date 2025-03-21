@@ -234,6 +234,21 @@ class RedisCache:
 class CacheFactory:
     """Fábrica para criar instâncias de cache."""
     
+    def __init__(self):
+        """Inicializa a fábrica de cache."""
+        self._cache = None
+    
+    def get_cache(self) -> Cache:
+        """
+        Obtém uma instância de cache, criando uma nova se necessário.
+        
+        Returns:
+            Cache: Instância de cache configurada.
+        """
+        if self._cache is None:
+            self._cache = self.create()
+        return self._cache
+    
     @staticmethod
     def create() -> Cache:
         """
@@ -251,15 +266,16 @@ class CacheFactory:
                 return RedisCache(config)
             except Exception as e:
                 logger.error(f"Erro ao criar cache Redis: {e}")
-                logger.warning("Usando cache em memória como fallback")
+                logger.info("Usando cache em memória como fallback")
                 return MemoryCache(config)
         else:
+            logger.info("Cache em memória inicializado")
             return MemoryCache(config)
     
     @staticmethod
     def create_from_config(config: CacheConfig) -> Cache:
         """
-        Cria uma instância de cache com base em uma configuração existente.
+        Cria uma instância de cache com base em uma configuração específica.
         
         Args:
             config: Configurações do cache.
@@ -272,7 +288,7 @@ class CacheFactory:
                 return RedisCache(config)
             except Exception as e:
                 logger.error(f"Erro ao criar cache Redis: {e}")
-                logger.warning("Usando cache em memória como fallback")
+                logger.info("Usando cache em memória como fallback")
                 return MemoryCache(config)
         else:
             return MemoryCache(config) 
