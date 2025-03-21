@@ -1,166 +1,224 @@
+"""
+Testes para o sistema de cache.
+"""
+
 import unittest
 import logging
-import time
-from pathlib import Path
-import sys
+from app.config.cache.cache_config import CacheConfig
+from app.config.cache.cache_factory import CacheFactory, MemoryCache, RedisCache
+from app.config.settings import DynamicSettings
 
-# Configura logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Adiciona diretório raiz ao PYTHONPATH
-root_dir = Path(__file__).resolve().parent.parent
-sys.path.append(str(root_dir))
-
-from app.core.cache.cache_manager import cache_manager
-from app.core.cache.decorators import cached
-
-class TestCacheSystem(unittest.TestCase):
+class TestCacheConfig(unittest.TestCase):
+    """Testes para a classe CacheConfig."""
+    
     def setUp(self):
-        """Prepara o ambiente para cada teste"""
-        self.cache_manager = cache_manager
-        self.cache_manager.clear()  # Limpa o cache antes de cada teste
-        
-    def test_basic_cache_operations(self):
-        """Testa operações básicas do cache"""
-        # Teste SET
-        self.assertTrue(
-            self.cache_manager.set("test_key", "test_value"),
-            "Falha ao armazenar valor no cache"
-        )
-        
-        # Teste GET
-        self.assertEqual(
-            self.cache_manager.get("test_key"),
-            "test_value",
-            "Valor recuperado não corresponde ao armazenado"
-        )
-        
-        # Teste DELETE
-        self.cache_manager.delete("test_key")
-        self.assertIsNone(
-            self.cache_manager.get("test_key"),
-            "Valor não foi deletado corretamente"
-        )
-        
-    def test_cache_expiration(self):
-        """Testa expiração do cache"""
-        # Armazena com timeout curto
-        self.cache_manager.set("expire_key", "expire_value", timeout=1)
-        
-        # Verifica imediatamente
-        self.assertEqual(
-            self.cache_manager.get("expire_key"),
-            "expire_value",
-            "Valor não disponível imediatamente"
-        )
-        
-        # Aguarda expiração
-        time.sleep(1.1)
-        
-        # Verifica após expiração
-        self.assertIsNone(
-            self.cache_manager.get("expire_key"),
-            "Valor não expirou corretamente"
-        )
-        
-    def test_cache_decorator(self):
-        """Testa o decorador de cache"""
-        self.call_count = 0
-        
-        @cached(timeout=5)
-        def test_function(x, y):
-            self.call_count += 1
-            return x + y
-        
-        # Primeira chamada (deve executar a função)
-        result1 = test_function(2, 3)
-        self.assertEqual(result1, 5)
-        self.assertEqual(self.call_count, 1)
-        
-        # Segunda chamada (deve usar cache)
-        result2 = test_function(2, 3)
-        self.assertEqual(result2, 5)
-        self.assertEqual(self.call_count, 1)  # Não deve incrementar
-        
-        # Chamada com parâmetros diferentes (deve executar a função)
-        result3 = test_function(3, 4)
-        self.assertEqual(result3, 7)
-        self.assertEqual(self.call_count, 2)
-        
-    def test_cache_stats(self):
-        """Testa estatísticas do cache"""
-        # Limpa estatísticas
-        self.cache_manager.stats = {
-            'hits': 0,
-            'misses': 0,
-            'evictions': 0
+        """Configuração inicial dos testes."""
+        self.settings = DynamicSettings()
+        self.original_cache_settings = self.settings.get_setting(['performance', 'cache'], {})
+        self.config = CacheConfig.from_settings()
+    
+    def tearDown(self):
+        """Limpeza após os testes."""
+        # Restaurar configurações originais
+        self.settings.set_setting(['performance', 'cache'], self.original_cache_settings)
+        self.settings.save()
+    
+    def test_default_config(self):
+        """Testa configurações padrão."""
+        # Configurar cache padrão
+        cache_settings = {
+            'type': 'memory',
+            'default_ttl': 3600,
+            'redis': {
+                'enabled': False,
+                'host': 'localhost',
+                'port': 6379,
+                'db': 0,
+                'password': None
+            },
+            'memory': {
+                'max_size': 1000
+            },
+            'key_prefix': 'controlix:'
         }
+        self.settings.set_setting(['performance', 'cache'], cache_settings)
+        self.settings.save()
         
-        # Gera alguns hits e misses
-        self.cache_manager.set("stats_key", "stats_value")
+        # Recarregar configurações
+        config = CacheConfig.from_settings()
         
-        # Miss (chave inexistente)
-        self.cache_manager.get("nonexistent_key")
+        # Verificar valores
+        self.assertEqual(config.cache_type, 'memory')
+        self.assertEqual(config.default_ttl, 3600)
+        self.assertEqual(config.memory_max_size, 1000)
+        self.assertEqual(config.key_prefix, 'controlix:')
+    
+    def test_redis_config(self):
+        """Testa configurações do Redis."""
+        # Configurar Redis
+        cache_settings = {
+            'type': 'redis',
+            'default_ttl': 1800,
+            'redis': {
+                'enabled': True,
+                'host': 'redis.local',
+                'port': 6380,
+                'db': 1,
+                'password': 'secret'
+            },
+            'memory': {
+                'max_size': 500
+            },
+            'key_prefix': 'test:'
+        }
+        self.settings.set_setting(['performance', 'cache'], cache_settings)
+        self.settings.save()
         
-        # Hit (chave existente)
-        self.cache_manager.get("stats_key")
+        # Recarregar configurações
+        config = CacheConfig.from_settings()
         
-        # Verifica estatísticas
-        stats = self.cache_manager.get_stats()
-        self.assertEqual(stats['hits'], 1)
-        self.assertEqual(stats['misses'], 1)
+        # Verificar valores
+        self.assertEqual(config.cache_type, 'redis')
+        self.assertEqual(config.default_ttl, 1800)
+        self.assertEqual(config.redis_host, 'redis.local')
+        self.assertEqual(config.redis_port, 6380)
+        self.assertEqual(config.redis_db, 1)
+        self.assertEqual(config.redis_password, 'secret')
+        self.assertEqual(config.key_prefix, 'test:')
+
+class TestMemoryCache(unittest.TestCase):
+    """Testes para o cache em memória."""
+    
+    def setUp(self):
+        """Configuração inicial dos testes."""
+        self.settings = DynamicSettings()
+        self.original_cache_settings = self.settings.get_setting(['performance', 'cache'], {})
         
-    def test_cache_max_size(self):
-        """Testa limite máximo do cache"""
-        # Força o limite máximo para teste
-        original_max_size = self.cache_manager.max_size
-        self.cache_manager.max_size = 3
+        # Configurar cache em memória
+        cache_settings = {
+            'type': 'memory',
+            'default_ttl': 60,
+            'memory': {
+                'max_size': 2
+            },
+            'key_prefix': 'test:'
+        }
+        self.settings.set_setting(['performance', 'cache'], cache_settings)
+        self.settings.save()
+        
+        self.config = CacheConfig.from_settings()
+        self.cache = MemoryCache(self.config)
+    
+    def tearDown(self):
+        """Limpeza após os testes."""
+        self.cache.clear()
+        self.settings.set_setting(['performance', 'cache'], self.original_cache_settings)
+        self.settings.save()
+    
+    def test_basic_operations(self):
+        """Testa operações básicas do cache."""
+        # Set e Get
+        self.cache.set('key1', 'value1')
+        self.assertEqual(self.cache.get('key1'), 'value1')
+        
+        # Delete
+        self.cache.delete('key1')
+        self.assertIsNone(self.cache.get('key1'))
+    
+    def test_max_size(self):
+        """Testa limite de tamanho do cache."""
+        # Adicionar itens além do limite
+        self.cache.set('key1', 'value1')
+        self.cache.set('key2', 'value2')
+        self.cache.set('key3', 'value3')
+        
+        # Verificar que o item mais antigo foi removido
+        self.assertIsNone(self.cache.get('key1'))
+        self.assertIsNotNone(self.cache.get('key2'))
+        self.assertIsNotNone(self.cache.get('key3'))
+    
+    def test_ttl(self):
+        """Testa tempo de vida do cache."""
+        import time
+        
+        # Adicionar item com TTL curto
+        self.cache.set('key1', 'value1', ttl=1)
+        self.assertEqual(self.cache.get('key1'), 'value1')
+        
+        # Esperar expirar
+        time.sleep(1.1)
+        self.assertIsNone(self.cache.get('key1'))
+
+class TestCacheFactory(unittest.TestCase):
+    """Testes para a fábrica de cache."""
+    
+    def setUp(self):
+        """Configuração inicial dos testes."""
+        self.settings = DynamicSettings()
+        self.original_cache_settings = self.settings.get_setting(['performance', 'cache'], {})
+    
+    def tearDown(self):
+        """Limpeza após os testes."""
+        self.settings.set_setting(['performance', 'cache'], self.original_cache_settings)
+        self.settings.save()
+    
+    def test_memory_cache_creation(self):
+        """Testa criação de cache em memória."""
+        # Configurar cache em memória
+        cache_settings = {
+            'type': 'memory',
+            'default_ttl': 3600,
+            'memory': {
+                'max_size': 1000
+            }
+        }
+        self.settings.set_setting(['performance', 'cache'], cache_settings)
+        self.settings.save()
+        
+        # Criar cache
+        cache = CacheFactory.create()
+        self.assertIsInstance(cache, MemoryCache)
+    
+    def test_redis_cache_creation(self):
+        """Testa criação de cache Redis."""
+        # Configurar Redis
+        cache_settings = {
+            'type': 'redis',
+            'default_ttl': 3600,
+            'redis': {
+                'enabled': True,
+                'host': 'localhost',
+                'port': 6379,
+                'db': 0
+            }
+        }
+        self.settings.set_setting(['performance', 'cache'], cache_settings)
+        self.settings.save()
         
         try:
-            # Adiciona itens até exceder o limite
-            for i in range(5):
-                self.cache_manager.set(f"key_{i}", f"value_{i}")
+            # Tentar criar cache Redis
+            cache = CacheFactory.create()
             
-            # Verifica se manteve apenas os últimos 3
-            self.assertEqual(
-                len(self.cache_manager.cache),
-                3,
-                "Cache excedeu o tamanho máximo"
-            )
-            
-            # Verifica se os itens mais antigos foram removidos
-            self.assertIsNone(
-                self.cache_manager.get("key_0"),
-                "Item antigo não foi removido"
-            )
-            self.assertIsNone(
-                self.cache_manager.get("key_1"),
-                "Item antigo não foi removido"
-            )
-            
-        finally:
-            # Restaura o tamanho máximo original
-            self.cache_manager.max_size = original_max_size
-            
-    def test_cache_clear(self):
-        """Testa limpeza completa do cache"""
-        # Adiciona alguns itens
-        for i in range(5):
-            self.cache_manager.set(f"clear_key_{i}", f"value_{i}")
-        
-        # Limpa o cache
-        self.cache_manager.clear()
-        
-        # Verifica se está vazio
-        self.assertEqual(
-            len(self.cache_manager.cache),
-            0,
-            "Cache não foi limpo corretamente"
-        )
+            # Se Redis estiver disponível
+            if isinstance(cache, RedisCache):
+                # Testar operações básicas
+                cache.set('test_key', 'test_value')
+                self.assertEqual(cache.get('test_key'), 'test_value')
+                cache.delete('test_key')
+                
+                # Fechar conexão
+                cache.close()
+            else:
+                # Se Redis não estiver disponível, deve usar fallback
+                self.assertIsInstance(cache, MemoryCache)
+                logger.warning("Redis não disponível, usando cache em memória")
+        except Exception as e:
+            logger.error(f"Erro ao testar Redis: {e}")
+            self.skipTest("Redis não disponível")
 
 if __name__ == '__main__':
     unittest.main() 

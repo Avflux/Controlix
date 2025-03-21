@@ -106,14 +106,15 @@ class EncryptedSettingsGUI(ctk.CTkFrame):
         )
 
 class EncryptedSettings:
-    def __init__(self):
+    def __init__(self, config_dir: Optional[Path] = None):
         """Inicializa o gerenciador de configurações criptografadas"""
         try:
             logger.info("Iniciando configurações criptografadas")
             
             # Configura caminhos
-            self.key_file = SECURITY_DIR / 'crypto.key'
-            self.env_file = SECURITY_DIR / '.env.encrypted'
+            self.security_dir = config_dir or SECURITY_DIR
+            self.key_file = self.security_dir / 'crypto.key'
+            self.env_file = self.security_dir / '.env.encrypted'
             
             # Cache para evitar descriptografar repetidamente
             self._env_cache = None
@@ -132,7 +133,7 @@ class EncryptedSettings:
                 f"• {self.key_file.name}\n"
                 f"• {self.env_file.name}\n\n"
                 "Estes arquivos devem estar no diretório:\n"
-                f"{SECURITY_DIR}\n\n"
+                f"{self.security_dir}\n\n"
                 "Por favor, configure o sistema usando o aplicativo de configuração."
             )
             raise

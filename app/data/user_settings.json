@@ -114,6 +114,21 @@
         "25-12": "Natal"
     },
     "performance": {
+        "cache": {
+            "type": "memory",
+            "default_ttl": 3600,
+            "redis": {
+                "enabled": false,
+                "host": "localhost",
+                "port": 6379,
+                "db": 0,
+                "password": null
+            },
+            "memory": {
+                "max_size": 1000
+            },
+            "key_prefix": "controlix:"
+        },
         "cache_timeout": 300,
         "max_notifications_queue": 50,
         "cleanup_interval": 3600,

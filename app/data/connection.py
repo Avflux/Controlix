@@ -8,8 +8,8 @@ import customtkinter as ctk
 from tkinter import messagebox
 
 # Importações locais
-from app.config.settings import DATABASE, IS_DEVELOPMENT
-from app.config.encrypted_settings import encrypted_settings, ConfigError
+from app.config.settings import DATABASE, IS_DEVELOPMENT, SECURITY_DIR
+from app.config.encrypted_settings import EncryptedSettings, ConfigError
 from app.core.observer.auth_observer import auth_observer
 from app.data.mysql.mysql_connection import MySQLConnection
 from app.data.cache.query_cache import QueryCache
@@ -55,8 +55,15 @@ class DatabaseConnection:
         if not hasattr(self, 'initialized'):
             logger.info("Inicializando gerenciador de conexões de banco de dados")
             
+            # Configurações criptografadas para cada banco
+            self.local_settings = EncryptedSettings(SECURITY_DIR / 'mysql_local')
+            self.remote_settings = EncryptedSettings(SECURITY_DIR / 'mysql_remoto')
+            
             # Conexão MySQL
-            self.mysql_connection = MySQLConnection()
+            self.mysql_connection = MySQLConnection(
+                local_settings=self.local_settings,
+                remote_settings=self.remote_settings
+            )
             self.current_connection = None
             
             # Cache de consultas

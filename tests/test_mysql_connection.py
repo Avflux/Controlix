@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Testes para conexão com bancos MySQL local e remoto.
+Testes para o módulo de conexão MySQL.
 """
 
 import os
@@ -11,12 +11,13 @@ import unittest
 import logging
 import time
 from pathlib import Path
+from app.config.encrypted_settings import EncryptedSettings
+from app.data.mysql.mysql_connection import MySQLConnection
+from app.config.cache.cache_config import CacheConfig
+from app.config.cache.cache_factory import CacheFactory
 
-# Configuração de logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Adiciona o diretório raiz ao path para importações
@@ -24,161 +25,297 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 # Importações do projeto
 from app.data.mysql.credentials_loader import CredentialsLoader
-from app.data.mysql.mysql_connection import MySQLConnection
 from app.data.connection import DatabaseConnection
 
 class TestMySQLConnection(unittest.TestCase):
-    """Testes para conexão com bancos MySQL local e remoto."""
+    """Testes para a classe MySQLConnection."""
     
-    def setUp(self):
-        """Configuração inicial para os testes."""
-        # Configurar variáveis de ambiente
-        CredentialsLoader.setup_environment_variables()
-        
-        # Instanciar conexões
-        self.mysql_connection = MySQLConnection()
-        self.db_connection = DatabaseConnection()
-        
-    def test_credentials_loader(self):
-        """Testa o carregador de credenciais."""
-        # Testar carregamento de credenciais locais
-        local_credentials = CredentialsLoader.load_credentials(is_local=True)
-        self.assertIsNotNone(local_credentials)
-        self.assertIn('host', local_credentials)
-        self.assertIn('user', local_credentials)
-        self.assertIn('password', local_credentials)
-        self.assertIn('database', local_credentials)
-        
-        # Testar carregamento de credenciais remotas
-        remote_credentials = CredentialsLoader.load_credentials(is_local=False)
-        self.assertIsNotNone(remote_credentials)
-        self.assertIn('host', remote_credentials)
-        self.assertIn('user', remote_credentials)
-        self.assertIn('password', remote_credentials)
-        self.assertIn('database', remote_credentials)
-        
+    @classmethod
+    def setUpClass(cls):
+        """Configuração inicial dos testes."""
+        try:
+            # Carregar configurações
+            cls.local_settings = EncryptedSettings(Path('.security/mysql_local'))
+            cls.remote_settings = EncryptedSettings(Path('.security/mysql_remoto'))
+            
+            # Criar instância de conexão
+            cls.mysql = MySQLConnection(cls.local_settings, cls.remote_settings)
+            
+            logger.info("Configuração de teste inicializada")
+            
+        except Exception as e:
+            logger.error(f"Erro na configuração dos testes: {e}")
+            raise
+    
     def test_local_connection(self):
         """Testa a conexão com o banco local."""
-        # Testar conexão direta
-        status, message = CredentialsLoader.test_connection(is_local=True)
-        self.assertTrue(status, message)
-        logger.info(f"Conexão local: {message}")
-        
-        # Testar conexão via MySQLConnection
         try:
-            connection = self.mysql_connection.get_local_connection()
+            # Obter conexão
+            connection = self.mysql.get_local_connection()
+            self.assertIsNotNone(connection)
+            
+            # Verificar se está conectado
             self.assertTrue(connection.is_connected())
-            self.mysql_connection.release_connection(connection)
-            logger.info("Conexão local via MySQLConnection bem-sucedida")
-        except Exception as e:
-            self.fail(f"Erro na conexão local via MySQLConnection: {e}")
             
-        # Testar conexão via DatabaseConnection
-        try:
-            result = self.db_connection.execute_query("SELECT VERSION()", is_local=True)
-            self.assertIsNotNone(result)
-            logger.info(f"Conexão local via DatabaseConnection bem-sucedida: {result}")
-        except Exception as e:
-            self.fail(f"Erro na conexão local via DatabaseConnection: {e}")
+            # Liberar conexão
+            self.mysql.release_connection(connection)
             
+            logger.info("Teste de conexão local passou")
+            
+        except Exception as e:
+            logger.error(f"Erro no teste de conexão local: {e}")
+            raise
+    
     def test_remote_connection(self):
         """Testa a conexão com o banco remoto."""
-        # Testar conexão direta
-        status, message = CredentialsLoader.test_connection(is_local=False)
-        self.assertTrue(status, message)
-        logger.info(f"Conexão remota: {message}")
-        
-        # Testar conexão via MySQLConnection
         try:
-            connection = self.mysql_connection.get_remote_connection()
+            # Obter conexão
+            connection = self.mysql.get_remote_connection()
+            self.assertIsNotNone(connection)
+            
+            # Verificar se está conectado
             self.assertTrue(connection.is_connected())
-            self.mysql_connection.release_connection(connection)
-            logger.info("Conexão remota via MySQLConnection bem-sucedida")
-        except Exception as e:
-            self.fail(f"Erro na conexão remota via MySQLConnection: {e}")
             
-        # Testar conexão via DatabaseConnection
-        try:
-            result = self.db_connection.execute_query("SELECT VERSION()", is_local=False)
-            self.assertIsNotNone(result)
-            logger.info(f"Conexão remota via DatabaseConnection bem-sucedida: {result}")
-        except Exception as e:
-            self.fail(f"Erro na conexão remota via DatabaseConnection: {e}")
+            # Liberar conexão
+            self.mysql.release_connection(connection)
             
-    def test_query_execution(self):
-        """Testa a execução de consultas nos bancos local e remoto."""
-        # Testar consulta no banco local
+            logger.info("Teste de conexão remota passou")
+            
+        except Exception as e:
+            logger.error(f"Erro no teste de conexão remota: {e}")
+            raise
+    
+    def test_execute_query(self):
+        """Testa a execução de consultas."""
         try:
-            result_local = self.db_connection.execute_query(
-                "SHOW TABLES", 
+            # Testar no banco local
+            result = self.mysql.execute_query("SELECT 1 as test", is_local=True)
+            self.assertIsInstance(result, list)
+            self.assertEqual(len(result), 1)
+            self.assertEqual(result[0]['test'], 1)
+            
+            # Testar no banco remoto
+            result = self.mysql.execute_query("SELECT 1 as test", is_local=False)
+            self.assertIsInstance(result, list)
+            self.assertEqual(len(result), 1)
+            self.assertEqual(result[0]['test'], 1)
+            
+            logger.info("Teste de execução de consulta passou")
+            
+        except Exception as e:
+            logger.error(f"Erro no teste de execução de consulta: {e}")
+            raise
+    
+    def test_execute_update(self):
+        """Testa operações de atualização."""
+        try:
+            # Criar tabela de teste no banco local
+            self.mysql.execute_update("""
+                CREATE TABLE IF NOT EXISTS test_table (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(50)
+                )
+            """, is_local=True)
+            
+            # Inserir dados
+            affected = self.mysql.execute_update(
+                "INSERT INTO test_table (name) VALUES (%s)",
+                ("test",),
                 is_local=True
             )
-            self.assertIsNotNone(result_local)
-            logger.info(f"Tabelas no banco local: {len(result_local)}")
-            for table in result_local:
-                logger.info(f"  - {list(table.values())[0]}")
-        except Exception as e:
-            self.fail(f"Erro ao listar tabelas no banco local: {e}")
+            self.assertEqual(affected, 1)
             
-        # Testar consulta no banco remoto
+            # Limpar tabela
+            self.mysql.execute_update("DROP TABLE test_table", is_local=True)
+            
+            logger.info("Teste de operação de atualização passou")
+            
+        except Exception as e:
+            logger.error(f"Erro no teste de operação de atualização: {e}")
+            raise
+    
+    def test_execute_batch(self):
+        """Testa operações em lote."""
         try:
-            result_remote = self.db_connection.execute_query(
-                "SHOW TABLES", 
-                is_local=False
-            )
-            self.assertIsNotNone(result_remote)
-            logger.info(f"Tabelas no banco remoto: {len(result_remote)}")
-            for table in result_remote:
-                logger.info(f"  - {list(table.values())[0]}")
-        except Exception as e:
-            self.fail(f"Erro ao listar tabelas no banco remoto: {e}")
+            # Criar tabela de teste
+            self.mysql.execute_update("""
+                CREATE TABLE IF NOT EXISTS test_batch (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(50)
+                )
+            """, is_local=True)
             
-    def test_cache_with_mysql(self):
-        """Testa o sistema de cache com MySQL."""
-        # Executar consulta sem cache
-        start_time = time.time()
-        result1 = self.db_connection.execute_query(
-            "SELECT * FROM information_schema.tables LIMIT 100", 
-            is_local=True,
-            use_cache=False
-        )
-        no_cache_time = time.time() - start_time
-        
-        # Executar consulta com cache
-        start_time = time.time()
-        result2 = self.db_connection.execute_query(
-            "SELECT * FROM information_schema.tables LIMIT 100", 
-            is_local=True,
-            use_cache=True
-        )
-        cache_time = time.time() - start_time
-        
-        # Executar novamente com cache
-        start_time = time.time()
-        result3 = self.db_connection.execute_query(
-            "SELECT * FROM information_schema.tables LIMIT 100", 
-            is_local=True,
-            use_cache=True
-        )
-        cached_time = time.time() - start_time
-        
-        # Verificar resultados
-        self.assertEqual(len(result1), len(result2))
-        self.assertEqual(len(result2), len(result3))
-        
-        # Verificar tempos
-        logger.info(f"Tempo sem cache: {no_cache_time:.4f}s")
-        logger.info(f"Tempo com cache (primeira vez): {cache_time:.4f}s")
-        logger.info(f"Tempo com cache (segunda vez): {cached_time:.4f}s")
-        
-        # A segunda consulta com cache deve ser mais rápida
-        self.assertLess(cached_time, no_cache_time)
-        
-    def tearDown(self):
+            # Preparar dados
+            data = [("name1",), ("name2",), ("name3",)]
+            
+            # Executar inserção em lote
+            affected = self.mysql.execute_batch(
+                "INSERT INTO test_batch (name) VALUES (%s)",
+                data,
+                is_local=True
+            )
+            self.assertEqual(affected, 3)
+            
+            # Verificar dados
+            result = self.mysql.execute_query(
+                "SELECT COUNT(*) as count FROM test_batch",
+                is_local=True
+            )
+            self.assertEqual(result[0]['count'], 3)
+            
+            # Limpar tabela
+            self.mysql.execute_update("DROP TABLE test_batch", is_local=True)
+            
+            logger.info("Teste de operação em lote passou")
+            
+        except Exception as e:
+            logger.error(f"Erro no teste de operação em lote: {e}")
+            raise
+    
+    def test_cache(self):
+        """Testa o sistema de cache."""
+        try:
+            # Criar tabela de teste
+            self.mysql.execute_update("""
+                CREATE TABLE IF NOT EXISTS test_cache (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(50)
+                )
+            """, is_local=True)
+            
+            # Inserir dados
+            self.mysql.execute_update(
+                "INSERT INTO test_cache (name) VALUES (%s)",
+                ("test_cache",),
+                is_local=True
+            )
+            
+            # Primeira consulta (sem cache)
+            start_time = time.time()
+            result1 = self.mysql.execute_query(
+                "SELECT * FROM test_cache",
+                is_local=True,
+                use_cache=True
+            )
+            no_cache_time = time.time() - start_time
+            
+            # Segunda consulta (com cache)
+            start_time = time.time()
+            result2 = self.mysql.execute_query(
+                "SELECT * FROM test_cache",
+                is_local=True,
+                use_cache=True
+            )
+            cache_time = time.time() - start_time
+            
+            # Verificar resultados
+            self.assertEqual(result1, result2)
+            self.assertLess(cache_time, no_cache_time)
+            
+            # Atualizar dados
+            self.mysql.execute_update(
+                "UPDATE test_cache SET name = %s",
+                ("updated",),
+                is_local=True,
+                invalidate_cache=True
+            )
+            
+            # Consulta após atualização
+            result3 = self.mysql.execute_query(
+                "SELECT * FROM test_cache",
+                is_local=True,
+                use_cache=True
+            )
+            self.assertEqual(result3[0]['name'], "updated")
+            
+            # Limpar tabela
+            self.mysql.execute_update("DROP TABLE test_cache", is_local=True)
+            
+            logger.info("Teste de cache passou")
+            logger.info(f"Tempo sem cache: {no_cache_time:.4f}s")
+            logger.info(f"Tempo com cache: {cache_time:.4f}s")
+            
+        except Exception as e:
+            logger.error(f"Erro no teste de cache: {e}")
+            raise
+    
+    def test_cache_invalidation(self):
+        """Testa a invalidação do cache."""
+        try:
+            # Criar tabela de teste
+            self.mysql.execute_update("""
+                CREATE TABLE IF NOT EXISTS test_cache_invalidation (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    value INT
+                )
+            """, is_local=True)
+            
+            # Inserir dados iniciais
+            self.mysql.execute_update(
+                "INSERT INTO test_cache_invalidation (value) VALUES (%s)",
+                (1,),
+                is_local=True
+            )
+            
+            # Primeira consulta (armazenar em cache)
+            result1 = self.mysql.execute_query(
+                "SELECT * FROM test_cache_invalidation",
+                is_local=True,
+                use_cache=True
+            )
+            self.assertEqual(result1[0]['value'], 1)
+            
+            # Atualizar sem invalidar cache
+            self.mysql.execute_update(
+                "UPDATE test_cache_invalidation SET value = %s",
+                (2,),
+                is_local=True,
+                invalidate_cache=False
+            )
+            
+            # Consulta deve retornar valor em cache
+            result2 = self.mysql.execute_query(
+                "SELECT * FROM test_cache_invalidation",
+                is_local=True,
+                use_cache=True
+            )
+            self.assertEqual(result2[0]['value'], 1)  # Valor em cache
+            
+            # Atualizar com invalidação de cache
+            self.mysql.execute_update(
+                "UPDATE test_cache_invalidation SET value = %s",
+                (3,),
+                is_local=True,
+                invalidate_cache=True
+            )
+            
+            # Consulta deve retornar novo valor
+            result3 = self.mysql.execute_query(
+                "SELECT * FROM test_cache_invalidation",
+                is_local=True,
+                use_cache=True
+            )
+            self.assertEqual(result3[0]['value'], 3)  # Novo valor
+            
+            # Limpar tabela
+            self.mysql.execute_update("DROP TABLE test_cache_invalidation", is_local=True)
+            
+            logger.info("Teste de invalidação de cache passou")
+            
+        except Exception as e:
+            logger.error(f"Erro no teste de invalidação de cache: {e}")
+            raise
+    
+    @classmethod
+    def tearDownClass(cls):
         """Limpeza após os testes."""
-        # Fechar conexões
-        self.mysql_connection.close()
-        self.db_connection.close()
+        try:
+            if hasattr(cls, 'mysql'):
+                cls.mysql.close()
+            logger.info("Limpeza dos testes concluída")
+        except Exception as e:
+            logger.error(f"Erro na limpeza dos testes: {e}")
+            raise
 
 if __name__ == '__main__':
     unittest.main() 

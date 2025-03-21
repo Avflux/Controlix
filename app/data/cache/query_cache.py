@@ -19,6 +19,7 @@ class QueryCache:
         self.default_timeout = timedelta(minutes=5)  # Timeout padrão
         self.memory_monitor = memory_monitor
         self.memory_monitor.start_monitoring()
+        self._cleanup_counter = 0  # Adicionando o contador de limpeza
         
     def get_query_result(self, query: str, params: tuple) -> Optional[dict]:
         """Obtém resultado de query do cache"""

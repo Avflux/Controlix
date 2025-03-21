@@ -7,7 +7,7 @@ from app.core.scripts.icon_mapper import IconMapper
 import json
 from datetime import datetime
 import customtkinter as ctk
-from typing import Callable
+from typing import Callable, Any
 import appdirs
 import sys
 
@@ -82,11 +82,16 @@ THEME_DIR = UI_DIR / 'theme'  # Temas e estilos
 SECURITY_DIR = ROOT_DIR / '.security' if IS_DEVELOPMENT else USER_DATA_DIR / '.security'
 KEYS_DIR = SECURITY_DIR / 'keys'
 
+# Diretórios MySQL
+MYSQL_LOCAL_DIR = SECURITY_DIR / 'mysql_local'
+MYSQL_REMOTE_DIR = SECURITY_DIR / 'mysql_remoto'
+
 # Garante que os diretórios existam
 for directory in [
     CONFIG_DIR, DATA_DIR, 
     BACKUP_DIR, ICONS_DIR, IMAGES_DIR, LOGS_DIR, MYSQL_DIR,
-    CACHE_DIR, MIGRATIONS_DIR, SECURITY_DIR, KEYS_DIR
+    CACHE_DIR, MIGRATIONS_DIR, SECURITY_DIR, KEYS_DIR,
+    MYSQL_LOCAL_DIR, MYSQL_REMOTE_DIR
 ]:
     directory.mkdir(exist_ok=True, parents=True)
 
@@ -108,6 +113,14 @@ PROJECT_DIRS = {
             'mysql': MYSQL_DIR,
             'cache': CACHE_DIR,
             'migrations': MIGRATIONS_DIR
+        }
+    },
+    'security': {
+        'path': SECURITY_DIR,
+        'subdirs': {
+            'keys': KEYS_DIR,
+            'mysql_local': MYSQL_LOCAL_DIR,
+            'mysql_remote': MYSQL_REMOTE_DIR
         }
     },
     'logs': LOGS_DIR,
@@ -726,154 +739,100 @@ else:
     logger.debug(f"Diretório de ícones encontrado: {ICONS_DIR}")
     logger.debug(f"Ícones disponíveis: {[f.name for f in ICONS_DIR.glob('*')]}")
 
-# Adicionar uma classe para gerenciar configurações dinâmicas
 class DynamicSettings:
+    """Gerencia configurações dinâmicas do sistema."""
+    
     def __init__(self):
-        self._observers = []
-        self.config_file = CONFIG_FILE  # Permite sobrescrever para testes
+        """Inicializa as configurações dinâmicas."""
+        self.config_file = CONFIG_FILE
         self._settings = self._load_settings()
     
     def _load_settings(self) -> dict:
-        """Carrega as configurações do arquivo"""
+        """
+        Carrega as configurações do arquivo.
+        
+        Returns:
+            dict: Configurações carregadas.
+        """
         try:
             if self.config_file.exists():
                 with open(self.config_file, 'r', encoding='utf-8') as f:
-                    settings = json.load(f)
-                logger.debug("Configurações carregadas com sucesso")
-                return settings
+                    return json.load(f)
             else:
-                logger.warning("Arquivo de configurações não encontrado, usando padrões")
-                return self._get_default_settings()
+                logger.warning(f"Arquivo de configurações {self.config_file} não encontrado.")
+                return {}
         except Exception as e:
             logger.error(f"Erro ao carregar configurações: {e}")
-            return self._get_default_settings()
+            return {}
     
-    def _save_settings(self):
-        """Salva as configurações no arquivo"""
+    def save(self) -> None:
+        """Salva as configurações no arquivo."""
         try:
-            logger.debug(f"Salvando configurações em: {self.config_file}")
-            logger.debug(f"Conteúdo a ser salvo: {self._settings}")
-            
-            # Garante que o diretório existe
+            # Criar diretório pai se não existir
             self.config_file.parent.mkdir(parents=True, exist_ok=True)
             
-            # Salva com formatação para legibilidade
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(self._settings, f, indent=4, ensure_ascii=False)
-            
-            logger.debug("Configurações salvas com sucesso")
+                
+            logger.info("Configurações salvas com sucesso")
         except Exception as e:
-            logger.error(f"Erro ao salvar configurações: {e}", exc_info=True)
+            logger.error(f"Erro ao salvar configurações: {e}")
+            raise
     
-    def _get_default_settings(self) -> dict:
-        """Retorna as configurações padrão"""
-        return {
-            "window": {
-                "appearance_mode": "system",  # Modo de aparência (light/dark/system)
-                "color_theme": "blue",        # Tema de cores do CTk
-                "scaling_factor": 1.0,
-                "remember_positions": True,
-                "center_on_screen": True,
-                "preferred_monitor": 0
-            }
-        }
-    
-    def get_window_setting(self, key: str, default=None):
-        """Obtém uma configuração específica da janela"""
-        return self._settings.get('window', {}).get(key, default)
-    
-    def set_window_setting(self, key: str, value):
-        """Define uma configuração específica da janela"""
-        try:
-            logger.debug(f"Tentando atualizar configuração: {key} = {value}")
+    def get_setting(self, path: list, default: Any = None) -> Any:
+        """
+        Obtém uma configuração pelo caminho.
+        
+        Args:
+            path: Lista com o caminho para a configuração.
+            default: Valor padrão se não encontrado.
             
-            if 'window' not in self._settings:
-                self._settings['window'] = {}
-            
-            if self._settings['window'].get(key) != value:
-                self._settings['window'][key] = value
-                logger.debug(f"Configuração alterada, salvando arquivo...")
-                self._save_settings()
-                logger.debug(f"Arquivo salvo, notificando observadores...")
-                self._notify_observers('window')
-                logger.info(f"Configuração {key} atualizada para {value}")
+        Returns:
+            Any: Valor da configuração ou valor padrão.
+        """
+        current = self._settings
+        for key in path:
+            if isinstance(current, dict) and key in current:
+                current = current[key]
             else:
-                logger.debug(f"Valor não mudou, ignorando atualização")
-            
-        except Exception as e:
-            logger.error(f"Erro ao atualizar configuração {key}: {e}")
+                return default
+        return current
     
-    def add_observer(self, callback: Callable):
-        """Adiciona um observador para mudanças nas configurações"""
-        if callback not in self._observers:
-            self._observers.append(callback)
+    def set_setting(self, path: list, value: Any) -> None:
+        """
+        Define uma configuração pelo caminho.
+        
+        Args:
+            path: Lista com o caminho para a configuração.
+            value: Valor a ser definido.
+        """
+        current = self._settings
+        for key in path[:-1]:
+            if key not in current:
+                current[key] = {}
+            current = current[key]
+        current[path[-1]] = value
     
-    def remove_observer(self, callback: Callable):
-        """Remove um observador"""
-        if callback in self._observers:
-            self._observers.remove(callback)
+    def delete_setting(self, path: list) -> None:
+        """
+        Remove uma configuração pelo caminho.
+        
+        Args:
+            path: Lista com o caminho para a configuração.
+        """
+        current = self._settings
+        for key in path[:-1]:
+            if key not in current:
+                return
+            current = current[key]
+        
+        if path[-1] in current:
+            del current[path[-1]]
     
-    def _notify_observers(self, setting_type: str = None):
-        """Notifica observadores sobre mudanças nas configurações"""
-        try:
-            for observer in self._observers:
-                if hasattr(observer, '__call__'):
-                    observer(setting_type)
-        except Exception as e:
-            logger.error(f"Erro ao notificar observador: {e}")
-    
-    def save_window_position(self, window_name: str, x: int, y: int, width: int, height: int):
-        """Salva a posição e tamanho da janela"""
-        try:
-            if 'window' not in self._settings:
-                self._settings['window'] = {}
-            if 'windows' not in self._settings['window']:
-                self._settings['window']['windows'] = {}
-            
-            self._settings['window']['windows'][window_name] = {
-                'position': [x, y],
-                'size': [width, height],
-                'last_access': datetime.now().isoformat()
-            }
-            
-            self._save_settings()
-            logger.debug(f"Posição da janela {window_name} salva: pos({x},{y}), size({width},{height})")
-            
-        except Exception as e:
-            logger.error(f"Erro ao salvar posição da janela: {e}")
-    
-    def get_window_position(self, window_name: str) -> dict:
-        """Recupera a posição salva da janela"""
-        try:
-            windows = self._settings.get('window', {}).get('windows', {})
-            if window_name in windows:
-                return windows[window_name]
-            return None
-        except Exception as e:
-            logger.error(f"Erro ao recuperar posição da janela: {e}")
-            return None
-
-    def get_notification_setting(self, path: list, default=None):
-        """Obtém uma configuração de notificação específica"""
-        try:
-            value = self._settings
-            for key in ['notifications'] + path:
-                value = value[key]
-            return value
-        except (KeyError, TypeError):
-            return default
-
-    def set_notification_setting(self, path: list, value):
-        """Define uma configuração de notificação específica"""
-        try:
-            target = self._settings['notifications']
-            for key in path[:-1]:
-                target = target[key]
-            target[path[-1]] = value
-            self._save_settings()
-            self._notify_observers('notifications')
-        except Exception as e:
-            logger.error(f"Erro ao definir configuração de notificação: {e}")
+    def clear(self) -> None:
+        """Limpa todas as configurações."""
+        self._settings.clear()
+        self.save()
 
 # Instância global das configurações dinâmicas
 dynamic_settings = DynamicSettings()

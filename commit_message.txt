@@ -1,0 +1,9 @@
+﻿[Cursor] Implementa sistema de cache com suporte a Redis
+
+- Adiciona sistema de cache com suporte a memória e Redis
+- Implementa fábrica de cache para flexibilidade na escolha do backend
+- Adiciona configurações de cache no user_settings.json
+- Implementa TTL e limite de tamanho para cache
+- Adiciona testes para o sistema de cache
+- Atualiza requirements.txt com dependência do Redis
+- Corrige importação de tipos em settings.py
