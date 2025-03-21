@@ -87,6 +87,7 @@ coverage.xml
 .cursorignore
 
 # Outros
+.tools/
 *.tmp
 *.temp
 .env.local
