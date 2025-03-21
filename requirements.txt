@@ -1,0 +1,11 @@
+﻿appdirs
+customtkinter
+cryptography
+mysql-connector-python
+psutil
+Pillow
+pywin32
+plyer
+python-dotenv
+keyring
+screeninfo

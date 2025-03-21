@@ -1,0 +1,123 @@
+Controlix/
+├── .security/
+│   ├── keys/
+│   │   └── sqlite.key
+│   ├── crypto.key
+│   └── .env.encrypted
+│
+├── app/                    # Código principal da aplicação
+│   ├── config/                      # Configurações
+│   │   ├── __init__.py
+│   │   ├── encrypted_settings.py    # Configurações criptografadas
+│   │   ├── icon_mapping.json        # Mapeamento de ícones
+│   │   ├── secury_storage.py        # Armazenamento seguro
+│   │   └── settings.py              # Configurações padrão
+│   │
+│   ├── core/                        # Essencial
+│   │   ├── __init__.py
+│   │   ├── observer/                # Observadores
+│   │   │   ├── __init__.py
+│   │   │   └── auth_observer.py     # Observador de autenticação
+│   │   ├── query/                   # Consultas
+│   │   │   ├── __init__.py
+│   │   │   └── --
+│   │   └── script/                  # Scripts
+│   │       ├── __init__.py
+│   │       └── --
+│   │   
+│   ├── data/                        # Dados
+│   │   ├── __init__.py
+│   │   ├── logging/                 # Logging
+│   │   │   ├── __init__.py
+│   │   │   └── db_logging.py        # Logging do banco de dados
+│   │   │
+│   │   ├── security/                 # Security
+│   │   │   ├── __init__.py
+│   │   │   └── password_manager.py    # Gerenciador de senhas
+│   │   │
+│   │   ├── session/                 # Session
+│   │   │   ├── __init__.py
+│   │   │   └── session_manager.py    # Gerenciador de sessões
+│   │   │
+│   │   ├── sync/                    # Sync
+│   │   │   ├── __init__.py
+│   │   │   └── sync_manager.py      # Gerenciador de sincronização
+│   │   │
+│   │   ├── validation/              # Validation
+│   │   │   ├── __init__.py
+│   │   │   └── input_validator.py   # Validador de entrada
+│   │   │
+│   │   ├── backup_manager.py        # Gerenciador de backup
+│   │   ├── cache_manager.py         # Gerenciador de cache
+│   │   ├── connection.py            # Conexão com o banco de dados
+│   │   ├── secure_storage.py        # Armazenamento seguro
+│   │   └── user_settings.json       # Configurações do usuário
+│   │
+│   ├── ui/                         # Interface de usuário
+│   │   ├── components/             # Componentes
+│   │   │   └── User_Settings.py    # Configurações do usuário
+│   │   │
+│   │   ├── dialogs/                # Diálogos
+│   │   ├── notifications/          # Notificações
+│   │   │   └── notification_manager.py # Gerenciador de notificações
+│   │   │
+│   │   ├── theme/                  # Temas
+│   │   │   └── theme_manager.py    # Gerenciador de temas
+│   │   │
+│   │   └── windows/                # Janelas
+│   │       ├── login_window.py     # Janela de login
+│   │       └── window_position.py  # Posição da janela
+│   │
+│   ├── backups/
+│   │
+│   ├── data/
+│   │   ├── cache/                   # Cache
+│   │   │   ├── __init__.py
+│   │   │   └── query_cache.py       # Cache de consultas
+|   |   |
+│   │   ├── migrations/              # Backups
+│   │   │   ├── __init__.py
+│   │   │   ├── versions
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── 001_initial_schema.py
+│   │   │   ├── manager.py
+│   │   │   └── sync_manager.py      # Gerenciador de sincronização
+|   |   │
+|   |   └── sqlite/                   # SQLite
+│   │       ├── __init__.py
+│   │       ├── connection_pool.py   # Pool de conexões
+│   │       ├── work/                 # Trabalho
+│   │       │   ├── __init__.py
+│   │       │   └── --
+│   │       ├── local.db              # Banco de dados local
+│   │       ├── local.db-shm          # Banco de dados local - shm
+│   │       └── local.db-wal          # Banco de dados local - wal
+|   |
+│   └── icons/                       # Ícones
+│       ├── mapped/
+│       │   ├── afternoon.png
+│       │   ├── evening.png
+│       │   ├── morning.png
+│       │   ├── night.png
+│       │   └── sunrise.png
+│       │
+│       ├── afternoon.png 
+│       ├── evening.png
+│       ├── morning.png
+│       └── night.png  
+│
+├── images/                     # Recursos estáticos
+│   └── templates/              # Templates de UI
+├── logs/                       # Logs
+│   ├── app.log
+│   └── database.log
+│
+├── scripts/                    # Scripts
+│   ├── __init__.py
+│   └── migrate_passwords.py
+│
+├── docs/                       # Documentação
+│   ├── __init__.py
+│   └── --
+│
+└── main.py                     # Ponto de entrada principal

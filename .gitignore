@@ -1,0 +1,95 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Ambiente Virtual
+venv/
+ENV/
+env/
+.env
+
+# Arquivos de Log e Backup
+logs/
+*.log
+backups/
+*.bak
+*.swp
+*.swo
+
+# Arquivos de Configuração e Segurança
+.security/
+.env
+*.key
+*.pem
+*.cert
+config.local.json
+
+# Arquivos de Cache e Temporários
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Arquivos específicos do sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs e Editores
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Arquivos específicos do projeto
+localhost/
+my-project/
+
+# Arquivos de teste e desenvolvimento
+.pytest_cache/
+.coverage
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Arquivos do Cursor
+.cursorrules
+.cursorignore
+
+# Outros
+*.tmp
+*.temp
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

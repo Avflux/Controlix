@@ -1,0 +1,180 @@
+{
+    "business_hours": {
+        "start": "08:00",
+        "interval_start": "12:00",
+        "interval_end": "13:00",
+        "end": "17:00"
+    },
+    "business_birthday": {
+        "15-03": "AniversÃ¡rio do JoÃ£o",
+        "22-07": "AniversÃ¡rio da Maria",
+        "05-11": "AniversÃ¡rio do Pedro"
+    },
+    "logging": {
+        "console": {
+            "enabled": true,
+            "level": "DEBUG"
+        },
+        "app_file": {
+            "enabled": true,
+            "level": "DEBUG",
+            "max_size": 10485760,
+            "backup_count": 5
+        },
+        "db_file": {
+            "enabled": true,
+            "level": "DEBUG",
+            "max_size": 10485760,
+            "backup_count": 5
+        }
+    },
+    "notifications": {
+        "enabled": true,
+        "tray": {
+            "enabled": true,
+            "default_timeout": 10,
+            "levels": {
+                "info": {
+                    "enabled": true,
+                    "timeout": 5
+                },
+                "warning": {
+                    "enabled": true,
+                    "timeout": 15
+                },
+                "error": {
+                    "enabled": true,
+                    "timeout": 30
+                },
+                "success": {
+                    "enabled": true,
+                    "timeout": 5
+                }
+            },
+            "business_notifications": {
+                "start": {
+                    "enabled": true,
+                    "timeout": 5,
+                    "message": "InÃ­cio do Expediente",
+                    "icon": "C:\\Users\\Rno\\Desktop\\Controlix\\icons\\mapped\\morning.ico"
+                },
+                "interval_start": {
+                    "enabled": true,
+                    "timeout": 5,
+                    "message": "Hora do AlmoÃ§o",
+                    "icon": "C:\\Users\\Rno\\Desktop\\Controlix\\icons\\mapped\\lunch-time.png"
+                },
+                "interval_end": {
+                    "enabled": true,
+                    "timeout": 5,
+                    "message": "Retorno do AlmoÃ§o",
+                    "icon": "C:\\Users\\Rno\\Desktop\\Controlix\\icons\\mapped\\afternoon.ico"
+                },
+                "end": {
+                    "enabled": true,
+                    "timeout": 5,
+                    "message": "Fim do Expediente",
+                    "icon": "C:\\Users\\Rno\\Desktop\\Controlix\\icons\\mapped\\night.ico"
+                },
+                "coffee": {
+                    "enabled": true,
+                    "timeout": 5,
+                    "message": "Hora do CafÃ©",
+                    "schedule": [
+                        "10:00",
+                        "15:00"
+                    ],
+                    "icon": "C:\\Users\\Rno\\Desktop\\Controlix\\icons\\mapped\\coffee.ico"
+                },
+                "water": {
+                    "enabled": true,
+                    "timeout": 5,
+                    "message": "Hora de se Hidratar",
+                    "interval": 60,
+                    "icon": "C:\\Users\\Rno\\Desktop\\Controlix\\icons\\mapped\\water.ico"
+                }
+            }
+        }
+    },
+    "business_days": [
+        0,
+        1,
+        2,
+        3,
+        4
+    ],
+    "holidays": {
+        "01-01": "Ano Novo",
+        "21-04": "Tiradentes",
+        "01-05": "Dia do Trabalho",
+        "07-09": "IndependÃªncia",
+        "12-10": "Nossa Senhora",
+        "02-11": "Finados",
+        "15-11": "ProclamaÃ§Ã£o da RepÃºblica",
+        "25-12": "Natal"
+    },
+    "performance": {
+        "cache_timeout": 300,
+        "max_notifications_queue": 50,
+        "cleanup_interval": 3600,
+        "max_log_size": 10485760,
+        "memory_threshold": 512,
+        "db_connection_timeout": 30,
+        "ui_update_interval": 1000,
+        "cache_size": 100
+    },
+    "window": {
+        "remember_positions": true,
+        "center_on_screen": true,
+        "preferred_monitor": 0,
+        "appearance_mode": "dark",
+        "color_theme": "blue",
+        "scaling_factor": 1.0,
+        "windows": {
+            "loading_window": {
+                "position": [
+                    650,
+                    276
+                ],
+                "size": [
+                    1258,
+                    675
+                ],
+                "last_access": "2025-02-18T07:53:40.218499"
+            },
+            "login_window": {
+                "position": [
+                    621,
+                    163
+                ],
+                "size": [
+                    350,
+                    500
+                ],
+                "last_access": "2025-03-05T19:11:42.300119"
+            },
+            "main_window": {
+                "position": [
+                    162,
+                    95
+                ],
+                "size": [
+                    1057,
+                    700
+                ],
+                "last_access": "2025-03-05T19:15:42.637908"
+            },
+            "test_window": {
+                "position": [
+                    112,
+                    135
+                ],
+                "size": [
+                    200,
+                    200
+                ],
+                "last_access": "2025-03-05T19:42:56.340660"
+            }
+        }
+    }
+}
