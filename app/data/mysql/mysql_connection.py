@@ -51,15 +51,64 @@ class MySQLConnection:
         
         try:
             config = settings.decrypt_env()
-            return {
-                'host': config.get('DB_HOST', 'localhost'),
-                'port': int(config.get('DB_PORT', '3306')),
-                'user': config.get('DB_USER', 'root'),
-                'password': config.get('DB_PASSWORD', ''),
-                'database': config.get('DB_NAME', ''),
+            logger.debug(f"Chaves encontradas no arquivo .env.encrypted: {', '.join(config.keys())}")
+            
+            # Mapeamento de possíveis nomes de chaves para os nomes padrão
+            key_mappings = {
+                'host': ['DB_HOST', 'HOST', 'MYSQL_HOST', 'DATABASE_HOST'],
+                'port': ['DB_PORT', 'PORT', 'MYSQL_PORT', 'DATABASE_PORT'],
+                'user': ['DB_USER', 'USER', 'MYSQL_USER', 'DATABASE_USER', 'USERNAME'],
+                'password': ['DB_PASSWORD', 'PASSWORD', 'MYSQL_PASSWORD', 'DATABASE_PASSWORD', 'PASSWD'],
+                'database': ['DB_NAME', 'DATABASE', 'MYSQL_DATABASE', 'DATABASE_NAME', 'DB']
+            }
+            
+            # Valores padrão para cada chave
+            defaults = {
+                'host': 'localhost',
+                'port': 3306,
+                'user': 'root',
+                'password': '',
+                'database': '',
                 'pool_name': 'local_pool' if is_local else 'remote_pool',
                 'pool_size': 5
             }
+            
+            # Construir configuração final
+            final_config = {}
+            for key, possible_names in key_mappings.items():
+                # Procurar por qualquer uma das possíveis chaves no arquivo de configuração
+                value = None
+                for name in possible_names:
+                    if name in config:
+                        value = config[name]
+                        logger.debug(f"Usando {name} para {key}: {value if 'PASSWORD' not in name else '***'}")
+                        break
+                
+                # Se não encontrou, usa o valor padrão
+                if value is None:
+                    value = defaults[key]
+                    logger.debug(f"Usando valor padrão para {key}: {value if key != 'password' else '***'}")
+                
+                # Converter porta para int se necessário
+                if key == 'port' and isinstance(value, str):
+                    try:
+                        value = int(value)
+                    except ValueError:
+                        logger.warning(f"Valor de porta inválido: {value}, usando padrão: {defaults['port']}")
+                        value = defaults['port']
+                
+                final_config[key] = value
+            
+            # Adicionar as chaves não mapeadas
+            final_config['pool_name'] = defaults['pool_name']
+            final_config['pool_size'] = defaults['pool_size']
+            
+            # Log da configuração final (sem senha)
+            safe_config = {k: v if k != 'password' else '***' for k, v in final_config.items()}
+            logger.info(f"Configuração final para banco {'local' if is_local else 'remoto'}: {safe_config}")
+            
+            return final_config
+            
         except Exception as e:
             logger.error(f"Erro ao obter configurações do banco {'local' if is_local else 'remoto'}: {e}")
             raise
@@ -281,17 +330,49 @@ class MySQLConnection:
         logger.info("Fechando conexões MySQL")
         
         try:
-            # Fechar pools
-            if self.local_pool:
-                for cnx in self.local_pool._cnx_queue:
-                    cnx.close()
-            if self.remote_pool:
-                for cnx in self.remote_pool._cnx_queue:
-                    cnx.close()
+            # Fechar pools com tratamento adequado de erros
+            if hasattr(self, 'local_pool') and self.local_pool:
+                try:
+                    # Verificar se _cnx_queue é acessível como uma lista
+                    if hasattr(self.local_pool, '_cnx_queue'):
+                        # Tenta converter para lista se for iterável
+                        try:
+                            connections = list(self.local_pool._cnx_queue)
+                            for cnx in connections:
+                                try:
+                                    if hasattr(cnx, 'close') and not cnx.is_closed():
+                                        cnx.close()
+                                except:
+                                    pass
+                        except:
+                            logger.debug("Não foi possível iterar sobre local_pool._cnx_queue")
+                except Exception as e:
+                    logger.debug(f"Erro ao fechar conexões do pool local: {e}")
+            
+            if hasattr(self, 'remote_pool') and self.remote_pool:
+                try:
+                    # Verificar se _cnx_queue é acessível como uma lista
+                    if hasattr(self.remote_pool, '_cnx_queue'):
+                        # Tenta converter para lista se for iterável
+                        try:
+                            connections = list(self.remote_pool._cnx_queue)
+                            for cnx in connections:
+                                try:
+                                    if hasattr(cnx, 'close') and not cnx.is_closed():
+                                        cnx.close()
+                                except:
+                                    pass
+                        except:
+                            logger.debug("Não foi possível iterar sobre remote_pool._cnx_queue")
+                except Exception as e:
+                    logger.debug(f"Erro ao fechar conexões do pool remoto: {e}")
             
             # Fechar cache
-            if hasattr(self.cache, 'close'):
-                self.cache.close()
+            if hasattr(self, 'cache') and hasattr(self.cache, 'close'):
+                try:
+                    self.cache.close()
+                except Exception as e:
+                    logger.debug(f"Erro ao fechar cache: {e}")
                     
             logger.info("Todas as conexões MySQL fechadas")
             
@@ -434,4 +515,115 @@ class MySQLConnection:
             logger.error(f"Erro ao sincronizar estruturas: {e}")
             report['success'] = False
             report['errors'].append(str(e))
-            return report 
+            return report
+            
+    def test_connection(self, credentials: Optional[Dict] = None) -> bool:
+        """
+        Testa a conexão com o banco de dados MySQL.
+        
+        Args:
+            credentials: Credenciais para testar (opcional)
+            
+        Returns:
+            bool: True se a conexão for bem-sucedida, False caso contrário
+        """
+        try:
+            logger.info("Testando conexão com o banco de dados MySQL")
+            
+            # Se foram fornecidas credenciais, usar conexão temporária
+            if credentials and all(k in credentials for k in ['user', 'password']):
+                logger.debug("Testando com credenciais fornecidas")
+                
+                # Obter configuração base do banco local
+                config = self._get_db_config(is_local=True)
+                
+                # Sobrescrever credenciais
+                config['user'] = credentials['user']
+                config['password'] = credentials['password']
+                
+                # Remover configurações de pool para conexão única
+                if 'pool_name' in config:
+                    del config['pool_name']
+                if 'pool_size' in config:
+                    del config['pool_size']
+                
+                # Testar conexão
+                try:
+                    logger.debug(f"Tentando conectar com usuário: {config['user']}")
+                    connection = mysql.connector.connect(**config)
+                    connection.close()
+                    
+                    # Se autenticação bem-sucedida, notificar observer
+                    from app.core.observer.auth_observer import auth_observer
+                    auth_observer.notify_auth_success(user_data={
+                        'name_id': credentials['user'],
+                        'user': credentials['user']
+                    })
+                    
+                    logger.info("Conexão de teste bem-sucedida")
+                    return True
+                except mysql.connector.Error as e:
+                    logger.error(f"Falha na conexão de teste: {e}")
+                    return False
+            
+            # Caso contrário, testar usando os pools existentes
+            else:
+                logger.debug("Testando conexão com os pools existentes")
+                
+                # Testar conexão local
+                local_conn = None
+                try:
+                    local_conn = self.get_local_connection()
+                    logger.info("Conexão local testada com sucesso")
+                    local_ok = True
+                except Exception as e:
+                    logger.error(f"Falha no teste de conexão local: {e}")
+                    local_ok = False
+                finally:
+                    if local_conn:
+                        self.release_connection(local_conn)
+                
+                # Testar conexão remota
+                remote_conn = None
+                try:
+                    remote_conn = self.get_remote_connection()
+                    logger.info("Conexão remota testada com sucesso")
+                    remote_ok = True
+                except Exception as e:
+                    logger.error(f"Falha no teste de conexão remota: {e}")
+                    remote_ok = False
+                finally:
+                    if remote_conn:
+                        self.release_connection(remote_conn)
+                
+                # Pelo menos uma conexão deve funcionar
+                return local_ok or remote_ok
+                
+        except Exception as e:
+            logger.error(f"Erro ao testar conexão: {e}")
+            return False
+            
+    def is_connected(self) -> bool:
+        """
+        Verifica se pelo menos uma das conexões (local ou remota) está funcionando.
+        
+        Returns:
+            bool: True se alguma conexão estiver ativa
+        """
+        # Tenta obter e liberar uma conexão para verificar
+        try:
+            # Testar conexão local
+            try:
+                conn = self.get_local_connection()
+                self.release_connection(conn)
+                return True
+            except:
+                # Se falhar no local, tenta o remoto
+                try:
+                    conn = self.get_remote_connection()
+                    self.release_connection(conn)
+                    return True
+                except:
+                    return False
+        except:
+            return False 

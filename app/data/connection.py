@@ -73,12 +73,31 @@ class DatabaseConnection:
             
             logger.info(f"Usando cache do tipo: {cache_type}")
             
+            # Inicializar o status label como None
+            self.status_label = None
+            
             # Registrar para limpeza de recursos
             atexit.register(self.close)
             
             # Marcar como inicializado
             self.initialized = True
             logger.info("Gerenciador de conexões de banco de dados inicializado")
+    
+    def set_status_label(self, label: ctk.CTkLabel) -> None:
+        """
+        Define o label para exibir mensagens de status da conexão.
+        
+        Args:
+            label: CTkLabel onde as mensagens de status serão exibidas
+        """
+        logger.debug("Status label configurado para conexão de banco de dados")
+        self.status_label = label
+        
+        # Atualiza o status inicial se necessário
+        if hasattr(self, 'mysql_connection') and self.mysql_connection.is_connected():
+            self.status_label.configure(text="Conectado ao banco de dados", text_color="green")
+        else:
+            self.status_label.configure(text="Desconectado do banco de dados", text_color="gray")
     
     def get_connection(self, is_local: bool = True) -> mysql.connector.MySQLConnection:
         """
@@ -97,6 +116,9 @@ class DatabaseConnection:
                 return self.mysql_connection.get_remote_connection()
         except Exception as e:
             logger.error(f"Erro ao obter conexão MySQL: {e}")
+            # Atualiza o status label se estiver configurado
+            if self.status_label:
+                self.status_label.configure(text=f"Erro de conexão: {str(e)}", text_color="red")
             raise
     
     def release_connection(self, connection: mysql.connector.MySQLConnection) -> None:
@@ -110,6 +132,9 @@ class DatabaseConnection:
             self.mysql_connection.release_connection(connection)
         except Exception as e:
             logger.error(f"Erro ao liberar conexão: {e}")
+            # Atualiza o status label se estiver configurado
+            if self.status_label:
+                self.status_label.configure(text=f"Erro ao liberar conexão: {str(e)}", text_color="orange")
     
     def execute_query(self, query: str, params: tuple = None, is_local: bool = True, use_cache: bool = False) -> List[Dict]:
         """
@@ -253,6 +278,37 @@ class DatabaseConnection:
             self.close()
         except:
             pass
+
+    def test_connection(self, credentials: Optional[Dict] = None) -> bool:
+        """
+        Testa a conexão com o banco de dados.
+        
+        Args:
+            credentials: Credenciais para testar (opcional)
+            
+        Returns:
+            bool: True se a conexão for bem-sucedida, False caso contrário
+        """
+        try:
+            if self.status_label:
+                self.status_label.configure(text="Testando conexão...", text_color="blue")
+            
+            # Usar o método test_connection da classe MySQLConnection
+            result = self.mysql_connection.test_connection(credentials)
+            
+            # Atualizar o status label
+            if self.status_label:
+                if result:
+                    self.status_label.configure(text="Conexão bem-sucedida", text_color="green")
+                else:
+                    self.status_label.configure(text="Falha na conexão", text_color="red")
+            
+            return result
+        except Exception as e:
+            logger.error(f"Erro ao testar conexão: {e}")
+            if self.status_label:
+                self.status_label.configure(text=f"Erro: {str(e)}", text_color="red")
+            return False
 
 
 # Função auxiliar para obter instância do gerenciador de conexões
